@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генератор приказов / 命令书生成器</title>
+<script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+<style>
+  :root {
+    --navy: #1F3864;
+    --navy-light: #2E4F8A;
+    --navy-pale: #D6E4F0;
+    --gold: #C5A028;
+    --bg: #F5F6FA;
+    --surface: #FFFFFF;
+    --text: #1A1A2E;
+    --muted: #6B7280;
+    --border: #E2E8F0;
+    --radius: 10px;
+    --shadow: 0 2px 12px rgba(31,56,100,0.08);
+    --green: #16A34A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .site-header { background: var(--navy); color: white; }
+  .header-inner { max-width: 800px; margin: 0 auto; padding: 28px 24px 24px; }
+  .header-badge { display: inline-block; background: rgba(197,160,40,0.25); color: var(--gold); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; margin-bottom: 14px; border: 1px solid rgba(197,160,40,0.4); }
+  .header-title { font-size: 26px; font-weight: 700; line-height: 1.25; margin-bottom: 6px; }
+  .header-title span { display: block; font-size: 17px; font-weight: 400; opacity: .75; margin-top: 4px; }
+  .header-sub { font-size: 13px; opacity: .6; margin-top: 10px; }
+
+  .main { max-width: 800px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  .tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; box-shadow: var(--shadow); }
+  .tab-btn { flex: 1; padding: 14px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); border-right: 1px solid var(--border); transition: all .15s; line-height: 1.4; text-align: center; }
+  .tab-btn:last-child { border-right: none; }
+  .tab-btn.active { background: var(--navy); color: white; }
+  .tab-btn .tab-ru { font-size: 12px; display: block; }
+  .tab-btn .tab-cn { font-size: 13px; font-weight: 600; display: block; margin-bottom: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--navy); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-title::after { content: ''; flex: 1; height: 1px; background: var(--navy-pale); }
+
+  /* Number badge */
+  .num-badge { display: inline-flex; align-items: center; gap: 8px; background: #EEF6FF; border: 1px solid #BDD7F5; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; color: var(--navy); font-weight: 500; }
+  .num-badge .num-val { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .num-loading { color: var(--muted); font-size: 13px; font-style: italic; }
+
+  .company-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  @media(max-width:520px) { .company-grid { grid-template-columns: 1fr; } }
+  .co-pill { border: 1.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; background: transparent; text-align: left; transition: all .15s; width: 100%; }
+  .co-pill.selected { border-color: var(--navy); background: #EEF2FF; }
+  .co-pill .co-code { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .05em; display: block; margin-bottom: 3px; }
+  .co-pill .co-cn { font-size: 13px; font-weight: 600; color: var(--navy); display: block; }
+  .co-pill .co-ru { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; line-height: 1.3; }
+  .co-pill .co-next { font-size: 11px; color: var(--green); font-weight: 600; display: block; margin-top: 4px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media(max-width:520px) { .form-grid, .form-grid.three { grid-template-columns: 1fr; } }
+  .full { grid-column: 1 / -1; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .field input, .field select, .field textarea { border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; font-size: 14px; color: var(--text); background: #FAFAFA; font-family: inherit; transition: border-color .15s; width: 100%; }
+  .field input:focus, .field textarea:focus { outline: none; border-color: var(--navy); background: white; }
+  .field textarea { resize: vertical; min-height: 68px; }
+  .field input.auto-filled { background: #F0FDF4; border-color: #86EFAC; color: var(--green); font-weight: 600; }
+
+  .total-notice { background: #EEF6FF; border: 1px solid #BDD7F5; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: var(--navy); margin-top: 10px; font-weight: 500; }
+
+  .expense-item { display: grid; grid-template-columns: 1fr 130px 38px; gap: 8px; margin-bottom: 8px; align-items: start; }
+  @media(max-width:480px) { .expense-item { grid-template-columns: 1fr 100px 36px; } }
+  .expense-item input { font-size: 13px; }
+  .btn-del { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; color: #E24B4A; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-add-row { display: inline-flex; align-items: center; gap: 6px; border: 1.5px dashed var(--border); border-radius: 6px; background: transparent; padding: 8px 14px; font-size: 13px; color: var(--muted); cursor: pointer; margin-top: 4px; transition: border-color .15s; }
+  .btn-add-row:hover { border-color: var(--navy); color: var(--navy); }
+
+  .btn-generate { width: 100%; padding: 16px; background: var(--navy); color: white; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background .15s; box-shadow: 0 4px 16px rgba(31,56,100,0.25); }
+  .btn-generate:hover { background: var(--navy-light); }
+  .btn-generate:disabled { opacity: .6; cursor: not-allowed; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .site-footer { text-align: center; font-size: 12px; color: var(--muted); padding: 20px; border-top: 1px solid var(--border); margin-top: 20px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1A1A2E; color: white; padding: 12px 22px; border-radius: 30px; font-size: 14px; font-weight: 500; transition: transform .3s cubic-bezier(.34,1.56,.64,1); z-index: 999; white-space: nowrap; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .sync-status { font-size: 12px; color: var(--muted); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #D1D5DB; display: inline-block; }
+  .sync-dot.ok { background: var(--green); }
+  .sync-dot.err { background: #E24B4A; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-badge">Kazakhstan Westerfield Group</div>
+    <h1 class="header-title">
+      Генератор приказов
+      <span>命令书自动生成系统</span>
+    </h1>
+    <p class="header-sub">Заполните форму → скачайте готовый .docx / 填写表格 → 下载双语命令书 · 编号自动同步 Google Sheets</p>
+  </div>
+</header>
+
+<main class="main">
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" onclick="switchTab('travel',this)" role="tab">
+      <span class="tab-cn">出差命令书</span>
+      <span class="tab-ru">О командировании</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('expense',this)" role="tab">
+      <span class="tab-cn">业务招待费报销</span>
+      <span class="tab-ru">О возмещении представительских расходов</span>
+    </button>
+  </div>
+
+  <!-- Company selector -->
+  <div class="card">
+    <div class="card-title">公司 / Компания</div>
+    <div class="company-grid">
+      <button class="co-pill selected" onclick="selectCompany(0,this)" id="pill-0">
+        <span class="co-code">14501 · Holding</span>
+        <span class="co-cn">哈国贸易</span>
+        <span class="co-ru">КЗ Вестерфилд Трейдинг</span>
+        <span class="co-next" id="next-0">载入编号中...</span>
+      </button>
+      <button class="co-pill" onclick="selectCompany(1,this)" id="pill-1">
+        <span class="co-code">14502 · Mining</span>
+        <span class="co-cn">哈国矿控</span>
+        <span class="co-ru">КЗ Вестерфилд Майнинг</span>
+        <span class="co-next" id="next-1">载入编号中...</span>
+      </button>
+      <button class="co-pill" onclick="selectCompany(2,this)" id="pill-2">
+        <span class="co-code">14505 · Trading</span>
+        <span class="co-cn">哈韦农业</span>
+        <span class="co-ru">Агро Вестерфилд</span>
+        <span class="co-next" id="next-2">载入编号中...</span>
+      </button>
+    </div>
+    <div class="sync-status">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-msg">正在连接 Google Sheets...</span>
+    </div>
+  </div>
+
+  <!-- TRAVEL TAB -->
+  <div id="tab-travel" class="tab-panel active">
+    <div class="card">
+      <div class="card-title">Реквизиты приказа / 命令书信息</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Номер приказа № / 命令书编号（自动填入）</label>
+          <input id="t-num" placeholder="自动载入..." readonly style="cursor:default">
+        </div>
+        <div class="field">
+          <label>Дата / 日期</label>
+          <input id="t-date" type="date">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Сотрудник / 员工信息</div>
+      <div class="form-grid">
+        <div class="field"><label>ФИО на русском</label><input id="t-name-ru" placeholder="ЧЕН СЯОЦЯН"></div>
+        <div class="field"><label>姓名（中文）</label><input id="t-name-cn" placeholder="陈小强"></div>
+        <div class="field"><label>ИИН / 身份证号</label><input id="t-iin" placeholder="000000000000" maxlength="12"></div>
+        <div class="field"><label>Должность / 职务（可空）</label><input id="t-pos" placeholder="可留空"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Командировка / 出差信息</div>
+      <div class="form-grid">
+        <div class="field"><label>Откуда / 出发地</label><input id="t-from" value="г. Астана"></div>
+        <div class="field"><label>Куда / 目的地</label><input id="t-to" placeholder="г. Костанай"></div>
+        <div class="field"><label>Дата отъезда / 出发日期</label><input id="t-start" type="date"></div>
+        <div class="field"><label>Дата возвращения / 返回日期</label><input id="t-end" type="date"></div>
+        <div class="field full"><label>Цель командировки / 出差目的</label><textarea id="t-purpose" placeholder="переговоры по вопросам текущей деятельности Компании / 公司业务洽谈"></textarea></div>
+        <div class="field full"><label>目的中文补充（留空则自动填"公司业务洽谈"）</label><textarea id="t-purpose-cn" style="min-height:48px"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Суточные / 日补贴</div>
+      <div class="form-grid three">
+        <div class="field"><label>Дней / 天数</label><input id="t-days" type="number" min="1" placeholder="5" oninput="calcTravel()"></div>
+        <div class="field"><label>Суточные (USD/день)</label><input id="t-rate" type="number" value="100" oninput="calcTravel()"></div>
+        <div class="field"><label>Курс KZT/USD</label><input id="t-kzt" type="number" value="66.89" step="0.01" oninput="calcTravel()"></div>
+      </div>
+      <div id="t-total" class="total-notice" style="display:none"></div>
+    </div>
+
+    <button class="btn-generate" id="btn-travel" onclick="generateTravel()">
+      ⬇ 生成出差命令书 / Сформировать приказ о командировании (.docx)
+    </button>
+  </div>
+
+  <!-- EXPENSE TAB -->
+  <div id="tab-expense" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Реквизиты приказа / 命令书信息</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Номер приказа № / 命令书编号（自动填入）</label>
+          <input id="e-num" placeholder="自动载入..." readonly style="cursor:default">
+        </div>
+        <div class="field"><label>Дата / 日期</label><input id="e-date" type="date"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Сотрудник / 员工信息</div>
+      <div class="form-grid">
+        <div class="field"><label>ФИО на русском</label><input id="e-name-ru" placeholder="ЧЕН СЯОЦЯН"></div>
+        <div class="field"><label>姓名（中文）</label><input id="e-name-cn" placeholder="陈小强"></div>
+        <div class="field full"><label>ИИН / 身份证号</label><input id="e-iin" placeholder="000000000000" maxlength="12"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Статьи расходов / 费用明细</div>
+      <div id="expense-rows"></div>
+      <button class="btn-add-row" onclick="addExpense()">＋ 添加费用 / Добавить статью</button>
+      <div id="e-total" class="total-notice" style="display:none;margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Основание / 依据</div>
+      <div class="field"><textarea id="e-basis" style="min-height:52px">производственная необходимость</textarea></div>
+    </div>
+
+    <button class="btn-generate" id="btn-expense" onclick="generateExpense()">
+      ⬇ 生成报销命令书 / Сформировать приказ о возмещении расходов (.docx)
+    </button>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  Kazakhstan Westerfield Group · 中俄双语命令书生成器 · 编号自动同步 Google Sheets
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  CONFIG — 部署 Apps Script 后把 URL 粘贴到这里
+// ══════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdMZLxtdZWKMlI6x3DuT4xctoBwWsASxjFzcFwGlpetGXwDXQngPaeG-KbKh_OQDvT/exec';
+
+// ══════════════════════════════════════════════════════
+//  COMPANY DATA
+// ══════════════════════════════════════════════════════
+const COMPANIES = [
+  { key:'holding', code:'14501', nameCn:'哈萨克斯坦韦斯特菲尔德贸易有限责任公司', nameRu:'ТОО «Казахстан Вестерфилд Трейдинг»', bin:'240740900556', directorCn:'陈刚', directorRu:'ЧЕН ГАН' },
+  { key:'mining',  code:'14502', nameCn:'哈萨克斯坦韦斯特菲尔德矿业有限责任公司', nameRu:'ТОО «Казахстан Вестерфилд Майнинг»', bin:'', directorCn:'陈刚', directorRu:'ЧЕН ГАН' },
+  { key:'trading', code:'14505', nameCn:'农业韦斯特菲尔德有限责任公司', nameRu:'ТОО «Агро Вестерфилд»', bin:'', directorCn:'陈小强', directorRu:'ЧЕН СЯОЦЯН' }
+];
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let selectedCo = 0;
+let currentTab = 'travel';
+let nextNums = { holding: null, mining: null, trading: null };
+let expenseRows = [], expenseCounter = 0;
+
+// ══════════════════════════════════════════════════════
+//  INIT: 从 Google Sheets 读取编号
+// ══════════════════════════════════════════════════════
+async function loadNextNums() {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+    // 未配置时用本地 fallback
+    nextNums = { holding: 11, mining: 6, trading: 6 };
+    ['holding','mining','trading'].forEach((k,i) => {
+      document.getElementById('next-'+i).textContent = `下一个编号：№ ${nextNums[k]}`;
+    });
+    document.getElementById('sync-dot').className = 'sync-dot err';
+    document.getElementById('sync-msg').textContent = '⚠ 离线模式（未配置 API）— 请手动确认编号';
+    updateNumFields();
+    return;
+  }
+  try {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=get');
+    const data = await res.json();
+    if (data.ok) {
+      nextNums = data.nextNums;
+      ['holding','mining','trading'].forEach((k,i) => {
+        document.getElementById('next-'+i).textContent = `下一个编号：№ ${nextNums[k]}`;
+      });
+      document.getElementById('sync-dot').className = 'sync-dot ok';
+      document.getElementById('sync-msg').textContent = '已连接 Google Sheets · 编号实时同步';
+      updateNumFields();
+    } else { throw new Error(data.error); }
+  } catch(err) {
+    document.getElementById('sync-dot').className = 'sync-dot err';
+    document.getElementById('sync-msg').textContent = '无法连接 Google Sheets，请手动输入编号';
+    ['t-num','e-num'].forEach(id => {
+      const el = document.getElementById(id);
+      el.removeAttribute('readonly');
+      el.placeholder = '请手动输入编号';
+    });
+  }
+}
+
+function updateNumFields() {
+  const co = COMPANIES[selectedCo];
+  const num = nextNums[co.key];
+  if (num !== null) {
+    document.getElementById('t-num').value = num;
+    document.getElementById('e-num').value = num;
+    document.getElementById('t-num').className = 'auto-filled';
+    document.getElementById('e-num').className = 'auto-filled';
+  }
+}
+
+// 生成后写回 Sheets
+async function recordToSheets(coKey, num, type, employee, dateStr) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') return;
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ company: coKey, num, type, employee, date: dateStr })
+    });
+    // 刷新编号
+    await loadNextNums();
+  } catch(e) { console.warn('Sheets sync failed', e); }
+}
+
+// ══════════════════════════════════════════════════════
+//  UI LOGIC
+// ══════════════════════════════════════════════════════
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+function selectCompany(idx, el) {
+  selectedCo = idx;
+  document.querySelectorAll('.co-pill').forEach(p=>p.classList.remove('selected'));
+  el.classList.add('selected');
+  updateNumFields();
+}
+
+function calcTravel() {
+  const days = parseFloat(document.getElementById('t-days').value)||0;
+  const rate = parseFloat(document.getElementById('t-rate').value)||0;
+  const kzt  = parseFloat(document.getElementById('t-kzt').value)||0;
+  const el = document.getElementById('t-total');
+  if(days&&rate&&kzt){
+    el.style.display='';
+    el.textContent = `合计 Итого суточных: ${days} × ${rate} USD × ${kzt} = ${fmtNum(days*rate*kzt)} KZT`;
+  } else { el.style.display='none'; }
+}
+
+function addExpense() {
+  const id = ++expenseCounter;
+  expenseRows.push(id);
+  const div = document.createElement('div');
+  div.className='expense-item'; div.id='erow-'+id;
+  div.innerHTML=`<input placeholder="Наименование расхода / 费用名称" id="edesc-${id}"><input type="number" min="0" placeholder="Сумма KZT" id="eamt-${id}" oninput="updateExpTotal()"><button class="btn-del" onclick="delExpense(${id})">✕</button>`;
+  document.getElementById('expense-rows').appendChild(div);
+  updateExpTotal();
+}
+
+function delExpense(id) {
+  document.getElementById('erow-'+id)?.remove();
+  expenseRows = expenseRows.filter(r=>r!==id);
+  updateExpTotal();
+}
+
+function updateExpTotal() {
+  let total=0;
+  expenseRows.forEach(id=>{ total+=parseFloat(document.getElementById('eamt-'+id)?.value)||0; });
+  const el=document.getElementById('e-total');
+  if(expenseRows.length){ el.style.display=''; el.textContent=`合计 Итого: ${fmtNum(total)} KZT`; }
+  else el.style.display='none';
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function fmtNum(n){ return n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function fmtDate(str) {
+  if(!str) return {ru:'«____» _________ 20___г.', cn:'____年__月__日'};
+  const d=new Date(str+'T12:00:00');
+  const m=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return { ru:`«${d.getDate()}» ${m[d.getMonth()]} ${d.getFullYear()} г.`, cn:`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日` };
+}
+
+// ══════════════════════════════════════════════════════
+//  DOCX ENGINE
+// ══════════════════════════════════════════════════════
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign } = docx;
+const TW=9638, CW=4819;
+function noB(){ return {style:BorderStyle.NONE,size:0,color:'FFFFFF'}; }
+const NB={top:noB(),bottom:noB(),left:noB(),right:noB()};
+
+function cell(text, isRu, opts={}) {
+  const fill=opts.header?'1F3864':opts.shaded?'D6E4F0':'FFFFFF';
+  return new TableCell({
+    borders:NB, width:{size:CW,type:WidthType.DXA},
+    shading:{fill,type:ShadingType.CLEAR},
+    margins:{top:80,bottom:80,left:140,right:140},
+    verticalAlign:VerticalAlign.CENTER,
+    children:[new Paragraph({
+      alignment:opts.center?AlignmentType.CENTER:AlignmentType.LEFT,
+      children:[new TextRun({ text:String(text||''), font:isRu?'Times New Roman':'SimSun', size:20, bold:opts.bold||opts.header||false, color:opts.header?'FFFFFF':'000000' })]
+    })]
+  });
+}
+function dRow(ru,cn,shaded=false,opts={}) { return new TableRow({children:[cell(ru,true,{...opts,shaded}),cell(cn,false,{...opts,shaded})]}); }
+function hRow(ru,cn) { return new TableRow({children:[cell(ru,true,{header:true,center:true,bold:true}),cell(cn,false,{header:true,center:true,bold:true})]}); }
+function mkTable(rows){ return new Table({width:{size:TW,type:WidthType.DXA},columnWidths:[CW,CW],rows}); }
+function sp(n=100){ return new Paragraph({spacing:{before:0,after:n},children:[]}); }
+
+function mkDoc(rows) {
+  return new Document({
+    styles:{default:{document:{run:{font:'Times New Roman',size:20}}}},
+    sections:[{ properties:{page:{size:{width:11906,height:16838},margin:{top:1134,right:1134,bottom:1134,left:1134}}}, children:[mkTable(rows),sp(300)] }]
+  });
+}
+
+function dlDocx(doc, filename) {
+  Packer.toBlob(doc).then(blob=>{
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),2000);
+    showToast('✓ 文件已下载 · Файл скачан');
+  }).catch(()=>showToast('⚠ 生成失败，请重试'));
+}
+
+// ══════════════════════════════════════════════════════
+//  GENERATE TRAVEL
+// ══════════════════════════════════════════════════════
+async function generateTravel() {
+  const btn=document.getElementById('btn-travel');
+  btn.disabled=true; btn.textContent='生成中...';
+  try {
+    const co=COMPANIES[selectedCo];
+    const num=document.getElementById('t-num').value.trim()||'___';
+    const dateStr=document.getElementById('t-date').value;
+    const dated=fmtDate(dateStr);
+    const nameRu=document.getElementById('t-name-ru').value.trim()||'___';
+    const nameCn=document.getElementById('t-name-cn').value.trim()||'___';
+    const iin=document.getElementById('t-iin').value.trim()||'___';
+    const pos=document.getElementById('t-pos').value.trim();
+    const from=document.getElementById('t-from').value.trim()||'г. Астана';
+    const to=document.getElementById('t-to').value.trim()||'___';
+    const startD=fmtDate(document.getElementById('t-start').value);
+    const endD=fmtDate(document.getElementById('t-end').value);
+    const purposeRu=document.getElementById('t-purpose').value.trim()||'переговоры по вопросам текущей деятельности Компании';
+    const purposeCn=document.getElementById('t-purpose-cn').value.trim()||'公司业务洽谈';
+    const days=parseInt(document.getElementById('t-days').value)||0;
+    const rate=parseFloat(document.getElementById('t-rate').value)||100;
+    const kzt=parseFloat(document.getElementById('t-kzt').value)||66.89;
+    const totalKzt=days>0?fmtNum(days*rate*kzt):'';
+
+    const rows=[
+      hRow(co.nameRu,co.nameCn),
+      dRow('',''),
+      dRow(`ПРИКАЗ № ${num}`,`命  令  书  第 ${num} 号`,true,{bold:true,center:true}),
+      dRow('О командировании','关于派遣出差',false,{center:true}),
+      dRow(`Дата: ${dated.ru}`,`日期：${dated.cn}`,true),
+      dRow('',''),
+      dRow(pos?`ПРИКАЗЫВАЮ командировать (${pos}):`:' ПРИКАЗЫВАЮ командировать:', pos?`本人命令派遣（${pos}）出差：`:'本人命令派遣出差：',false,{bold:true}),
+      dRow(`Сотрудник: ${nameRu}`,`员工：${nameCn}`,true),
+      dRow(`ИИН: ${iin}`,`身份证号 ИИН：${iin}`),
+      dRow('','',true),
+      dRow('Место командировки:','出差地点：',false,{bold:true}),
+      dRow(`Из: ${from}  →  ${to}`,`从：${from} → ${to}`,true),
+      dRow(`Дата отъезда: ${startD.ru}`,`出发日期：${startD.cn}`),
+      dRow(`Дата возвращения: ${endD.ru}`,`返回日期：${endD.cn}`,true),
+    ];
+    if(days>0){
+      rows.push(dRow(`Срок командировки: ${days} дн.`,`出差天数：${days} 天`));
+      rows.push(dRow(`Суточные: ${days} × ${rate} USD × ${kzt} = ${totalKzt} KZT`,`日补贴：${days}天 × ${rate}$ × ${kzt} = ${totalKzt} KZT`,true));
+    }
+    rows.push(
+      dRow('',''),
+      dRow('Цель командировки:','出差目的：',false,{bold:true}),
+      dRow(purposeRu,purposeCn,true),
+      dRow('',''),
+      dRow('Основание: производственная необходимость','依据：工作需要'),
+      dRow('','',true),
+      dRow(`Директор: ${co.directorRu}`,`总经理：${co.directorCn}`,false,{bold:true}),
+      dRow('Подпись / 签字: ___________________________','签字：___________________________',true),
+      dRow('',''),
+      dRow('Ознакомлен / 已阅: ________________________','已阅：________________________',true),
+    );
+    dlDocx(mkDoc(rows), `Приказ_Командировка_${nameRu.replace(/\s+/g,'_')}_№${num}.docx`);
+    await recordToSheets(co.key, num, '出差命令书', nameRu, dateStr);
+  } finally {
+    btn.disabled=false; btn.textContent='⬇ 生成出差命令书 / Сформировать приказ о командировании (.docx)';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  GENERATE EXPENSE
+// ══════════════════════════════════════════════════════
+async function generateExpense() {
+  const btn=document.getElementById('btn-expense');
+  btn.disabled=true; btn.textContent='生成中...';
+  try {
+    const co=COMPANIES[selectedCo];
+    const num=document.getElementById('e-num').value.trim()||'___';
+    const dateStr=document.getElementById('e-date').value;
+    const dated=fmtDate(dateStr);
+    const nameRu=document.getElementById('e-name-ru').value.trim()||'___';
+    const nameCn=document.getElementById('e-name-cn').value.trim()||'___';
+    const iin=document.getElementById('e-iin').value.trim()||'___';
+    const basis=document.getElementById('e-basis').value.trim()||'производственная необходимость';
+    const items=expenseRows.map(id=>({desc:document.getElementById('edesc-'+id)?.value.trim()||'',amt:parseFloat(document.getElementById('eamt-'+id)?.value)||0})).filter(r=>r.desc);
+    const total=items.reduce((s,r)=>s+r.amt,0);
+
+    const rows=[
+      hRow(co.nameRu,co.nameCn),
+      dRow('',''),
+      dRow(`ПРИКАЗ № ${num}`,`命  令  书  第 ${num} 号`,true,{bold:true,center:true}),
+      dRow('О возмещении представительских расходов','关于报销业务招待费',false,{center:true}),
+      dRow(`Дата: ${dated.ru}`,`日期：${dated.cn}`,true),
+      dRow('',''),
+      dRow('ПРИКАЗЫВАЮ возместить расходы:','本人命令予以报销费用：',false,{bold:true}),
+      dRow(`Сотрудник: ${nameRu}`,`员工：${nameCn}`,true),
+      dRow(`ИИН: ${iin}`,`身份证号 ИИН：${iin}`),
+      dRow('','',true),
+      dRow('Статьи расходов:','费用明细：',false,{bold:true}),
+    ];
+    items.forEach((item,i)=>rows.push(dRow(`${i+1}. ${item.desc}: ${fmtNum(item.amt)} KZT`,`${i+1}. ${item.desc}: ${fmtNum(item.amt)} KZT`,i%2===0)));
+    rows.push(
+      dRow(`ИТОГО: ${fmtNum(total)} KZT`,`合计：${fmtNum(total)} KZT`,true,{bold:true}),
+      dRow('',''),
+      dRow('Финансовому отделу произвести оплату.','财务部门予以付款。'),
+      dRow('','',true),
+      dRow(`Основание: ${basis}`,`依据：${basis}`),
+      dRow('','',true),
+      dRow(`Директор: ${co.directorRu}`,`总经理：${co.directorCn}`,false,{bold:true}),
+      dRow('Подпись / 签字: ___________________________','签字：___________________________',true),
+      dRow('',''),
+      dRow('Ознакомлен / 已阅: ________________________','已阅：________________________',true),
+    );
+    dlDocx(mkDoc(rows), `Приказ_Расходы_${nameRu.replace(/\s+/g,'_')}_№${num}.docx`);
+    await recordToSheets(co.key, num, '报销招待费', nameRu, dateStr);
+  } finally {
+    btn.disabled=false; btn.textContent='⬇ 生成报销命令书 / Сформировать приказ о возмещении расходов (.docx)';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+document.getElementById('t-date').value=new Date().toISOString().slice(0,10);
+document.getElementById('e-date').value=new Date().toISOString().slice(0,10);
+addExpense(); addExpense();
+loadNextNums();
+</script>
+</body>
+</html>
